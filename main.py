@@ -9,53 +9,43 @@ from typing import Dict, Any, Set
 import argparse
 from datetime import datetime
 from pathlib import Path
-import yaml
 from prometheus_client import start_http_server
 
-from config.settings import settings
-from data_ingestion.exchange_client import ExchangeClient
-from data_ingestion.market_data_stream import MarketDataStream
-from execution.order_executor import OrderExecutor
-from ml_models.trainer import ModelTrainer
-from ml_models.inference import ModelInference
-from risk_management.position_manager import PositionManager
-from risk_management.risk_controller import RiskController
-from strategies.strategy_manager import StrategyManager
-from utilities.logger_setup import setup_logging, get_logger
+# Import settings and components using absolute paths
+from hydrobot.config.settings import settings, load_secrets_into_settings
+from hydrobot.data.market_data_stream import MarketDataStream
+from hydrobot.data.client_binance import ExchangeClient
+from hydrobot.trading.order_executor import OrderExecutor
+from hydrobot.models.trainer import ModelTrainer
+from hydrobot.models.inference import ModelInference
+from hydrobot.trading.position_manager import PositionManager
+from hydrobot.trading.risk_controller import RiskController
+from hydrobot.strategies.strategy_manager import StrategyManager
+from hydrobot.utils.logger_setup import setup_logging, get_logger
 
+# Use the central logger
 logger = get_logger(__name__)
 
 class TradingBot:
     """Main trading bot coordinator."""
     
-    def __init__(self, config_path: str):
-        """Initialize trading bot.
-        
-        Args:
-            config_path: Path to config file
-        """
-        # Load config
-        with open(config_path) as f:
-            self.config = yaml.safe_load(f)
-        
-        # Load environment-specific settings
-        settings.load_secrets()
-        
-        # Initialize components
-        self.exchange = ExchangeClient(self.config['exchange'])
-        self.market_data = MarketDataStream(self.config['market_data'])
-        self.position_manager = PositionManager(self.config['trading'])
+    def __init__(self):
+        """Initialize trading bot using central settings."""
+        # Initialize components using settings object
+        self.exchange = ExchangeClient()
+        self.market_data = MarketDataStream()
+        self.position_manager = PositionManager()
         self.risk_controller = RiskController(
-            self.config['risk'],
-            self.position_manager
+            risk_settings=settings.risk,
+            position_manager=self.position_manager
         )
         self.order_executor = OrderExecutor(
-            self.config['execution'],
-            self.exchange
+            execution_settings=settings.execution,
+            exchange=self.exchange
         )
-        self.model_trainer = ModelTrainer(self.config['ml'])
-        self.model_inference = ModelInference(self.config['ml'])
-        self.strategy_manager = StrategyManager(self.config['strategy'])
+        self.model_trainer = ModelTrainer(settings.ml)
+        self.model_inference = ModelInference(settings.ml)
+        self.strategy_manager = StrategyManager(settings.strategy)
         
         # Track active symbols
         self.active_symbols: Set[str] = set()
@@ -64,11 +54,12 @@ class TradingBot:
         signal.signal(signal.SIGINT, self._handle_signal)
         signal.signal(signal.SIGTERM, self._handle_signal)
         
-        # Start Prometheus metrics server
-        start_http_server(
-            self.config['monitoring']['metrics_port']
-        )
-    
+        # Start Prometheus metrics server if enabled
+        metrics_port = getattr(settings.monitoring, 'metrics_port', None)
+        if metrics_port:
+            start_http_server(metrics_port)
+            logger.info(f"Started metrics server on port {metrics_port}")
+
     def _handle_signal(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals.
         
@@ -76,9 +67,9 @@ class TradingBot:
             signum: Signal number
             frame: Current stack frame
         """
-        logger.info("shutdown_signal_received", signal=signum)
+        logger.info("Shutdown signal received", signal=signum)
         asyncio.create_task(self.shutdown())
-    
+
     async def initialize(self) -> bool:
         """Initialize all components.
         
@@ -95,14 +86,14 @@ class TradingBot:
                 return False
             
             # Initialize market data streams
-            symbols = self.config['trading']['trading_pairs']
-            await self.market_data.initialize(symbols)
+            trading_pairs = settings.exchange.trading_pairs
+            await self.market_data.initialize(trading_pairs)
             
             # Initialize order executor
             await self.order_executor.initialize()
             
             # Initialize position tracking
-            for symbol in symbols:
+            for symbol in trading_pairs:
                 self.position_manager.initialize_symbol(symbol)
             
             # Initialize strategies
@@ -112,16 +103,16 @@ class TradingBot:
             # Register callbacks
             self.market_data.register_callback(self._handle_market_update)
             
-            logger.info("bot_initialized",
-                       symbols=symbols,
-                       config=self.config)
+            logger.info("Bot initialized", 
+                       symbols=trading_pairs, 
+                       settings=settings.dict(exclude_secrets=True))
             
             return True
             
         except Exception as e:
-            logger.error("initialization_error", error=str(e))
+            logger.error("Initialization error", error=str(e))
             return False
-    
+
     async def _handle_market_update(self, market_data: Dict[str, Any]) -> None:
         """Process market data update.
         
@@ -163,16 +154,16 @@ class TradingBot:
                         market_data['orderbook']['mid_price']
                     )
                 else:
-                    logger.warning("signal_execution_failed",
+                    logger.warning("Signal execution failed",
                                 error=result.error,
                                 signal=signal.__dict__)
             
         except Exception as e:
-            logger.error("market_update_error",
+            logger.error("Market update error",
                         error=str(e),
                         data=market_data)
             self.risk_controller.record_error()
-    
+
     async def start(self) -> None:
         """Start trading bot."""
         # Start market data streams
@@ -181,7 +172,7 @@ class TradingBot:
         # Start strategies
         await self.strategy_manager.start_all()
         
-        logger.info("bot_started")
+        logger.info("Bot started")
     
     async def shutdown(self) -> None:
         """Gracefully shut down bot."""
@@ -199,20 +190,14 @@ class TradingBot:
             await self.order_executor.close()
             await self.exchange.close()
             
-            logger.info("bot_shutdown_complete")
+            logger.info("Bot shutdown complete")
             
         except Exception as e:
-            logger.error("shutdown_error", error=str(e))
+            logger.error("Shutdown error", error=str(e))
 
 async def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(description='HFT Scalping Bot')
-    parser.add_argument(
-        '--config',
-        type=str,
-        default='config/config.yaml',
-        help='Path to config file'
-    )
     parser.add_argument(
         '--log-level',
         type=str,
@@ -222,17 +207,25 @@ async def main() -> None:
     )
     args = parser.parse_args()
     
-    # Setup logging
-    setup_logging(args.log_level)
+    # Setup logging using settings or CLI override
+    log_level = args.log_level or settings.log_level
+    setup_logging(log_level)
+    
+    # Load secrets into settings
+    await load_secrets_into_settings()
     
     # Initialize and start bot
-    bot = TradingBot(args.config)
+    bot = TradingBot()
     if await bot.initialize():
         await bot.start()
         
         # Keep running until interrupted
-        while True:
-            await asyncio.sleep(1)
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            logger.info("Bot execution cancelled")
+            await bot.shutdown()
 
 if __name__ == "__main__":
     asyncio.run(main())

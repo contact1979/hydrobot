@@ -1,6 +1,49 @@
-pandas
-numpy
-requests
-ccxt
-scipy
-matplotlib
+# Core dependencies
+pydantic>=2.0  # Data validation and settings management
+pyyaml         # YAML configuration file parsing
+python-dotenv  # Environment variable management
+
+# Data processing and analysis
+pandas>=2.0    # Data manipulation and analysis
+numpy          # Numerical computations
+scipy          # Scientific computing
+pandas-ta      # Technical analysis indicators
+pytz          # Timezone handling
+
+# Machine Learning and Model Management
+scikit-learn   # Machine learning algorithms
+torch          # Deep learning framework
+mlflow        # Model lifecycle management and tracking
+
+# Exchange APIs and Trading
+ccxt>=3.0     # Cryptocurrency exchange API interface
+python-binance # Binance API client
+requests       # HTTP requests for APIs
+
+# Database and Storage
+sqlalchemy     # SQL database ORM and utilities
+psycopg2-binary  # PostgreSQL database adapter
+
+# Data Collection and APIs
+praw          # Reddit API client
+tweepy        # Twitter API client
+newsapi-python  # News API client for crypto news
+
+# Visualization and Dashboarding 
+dash          # Web dashboard framework
+plotly        # Interactive plotting
+
+# Monitoring and Logging
+structlog     # Structured logging
+prometheus-client  # Metrics and monitoring
+python-json-logger  # JSON formatted logging
+
+# Optional Dependencies (uncomment as needed)
+# mysql-connector-python  # MySQL database adapter
+# boto3                  # AWS SDK
+# azure-identity         # Azure authentication
+# azure-keyvault-secrets # Azure key vault
+# google-cloud-secret-manager  # GCP secret management
+# matplotlib            # Static plotting
+# joblib               # Parallel processing
+# lightgbm             # Gradient boosting framework
