@@ -1,0 +1,93 @@
+# HFT Scalping Bot Configuration
+
+# Environment settings
+env: production
+log_level: INFO
+prometheus_port: 8000
+
+# Exchange configuration
+exchange:
+  name: binance  # Currently supported: binance
+  trading_pairs:
+    - BTC/USDT
+    - ETH/USDT
+  testnet: true
+  rate_limit_margin: 0.8
+  requests_per_second: 10
+
+# Market data configuration
+market_data:
+  orderbook_levels: 10
+  trade_history_size: 1000
+  batch_size: 100
+  max_queue_size: 10000
+  websocket_timeout: 5
+
+# Trading parameters
+trading:
+  base_order_size: 0.001
+  max_position_size: 0.005
+  min_spread: 0.001
+  max_slippage: 0.002
+  order_timeout: 5
+  position_timeout: 300
+  min_profit_threshold: 0.001
+
+# Execution settings
+execution:
+  max_retries: 3
+  retry_delay: 0.5
+  max_slippage: 0.002
+  order_timeout: 5
+
+# Risk management
+risk:
+  max_position_size: 0.05
+  max_drawdown: 0.05
+  daily_loss_limit: 0.02
+  error_threshold: 3
+  circuit_breaker_cooldown: 300
+  position_limits:
+    BTC/USDT: 0.005
+    ETH/USDT: 0.05
+
+# Machine learning configuration
+ml:
+  feature_window: 100
+  prediction_horizon: 10
+  min_samples: 1000
+  training_interval: 86400
+  save_path: models
+  mlflow_uri: mlruns
+  mlflow_experiment: hft_models
+  model_params:
+    price_prediction:
+      layers: [128, 64, 32]
+      dropout: 0.2
+      learning_rate: 0.001
+    regime_classification:
+      n_states: 5
+      lookback: 100
+
+# Strategy parameters
+strategy:
+  min_spread: 0.001
+  max_position_size: 0.05
+  min_imbalance: 0.2
+  confidence_threshold: 0.7
+  regime_params:
+    RANGING_LOW_VOL:
+      min_spread: 0.0015
+      confidence: 0.6
+    TRENDING:
+      min_spread: 0.001
+      confidence: 0.7
+    VOLATILE:
+      min_spread: 0.002
+      confidence: 0.8
+
+# Monitoring and alerting
+monitoring:
+  metrics_port: 8000
+  push_gateway: http://localhost:9091
+  alert_webhook: null
